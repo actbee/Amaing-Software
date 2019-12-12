@@ -85,7 +85,7 @@ void System::do_patchmatch() {
 				int area_negy = row - area / 2 > 0 ?row - area / 2 : 0;
 				int area_posy = row + area / 2 < patch_mask.rows ? row+ area / 2 : patch_mask.rows - 1;
 				for (int i = area_negy; i < area_posy; i++) {   //对检索区域标记
-					for (int j = area_negx; j < area_negx; j++) {
+					for (int j = area_negx; j < area_posx; j++) {
 						patch_mask0.at<uchar>(i, j) = hole;
 					}
 				}
@@ -156,6 +156,11 @@ void System::check_mask(Mat mask0) {
 				result.at<Vec3b>(row, col)[1] = 155;
 				result.at<Vec3b>(row, col)[2] = 25;
 			}
+			else if (mask0.at<uchar>(row, col) == GC_PR_BGD) {
+				result.at<Vec3b>(row, col)[0] = 155;
+				result.at<Vec3b>(row, col)[1] = 255;
+				result.at<Vec3b>(row, col)[2] = 125;
+			}
 		}
 	}
 	imshow("check", result);
@@ -182,29 +187,40 @@ bool System::do_grabcut() {
 	Mat res, bgModel, fgModel;
 	image->copyTo(res);
 	Mat mask0;
-	mask0 = mask.clone();
+
 	cout << "grabcut is now doing....";
+
 	if (current_state == THREE) {
+		mask0=Mat::zeros(mask.size(), CV_8UC1);
+		for (int row =rect.y; row < rect.y+rect.height; row++) {
+			for (int col = rect.x; col < rect.x+rect.width; col++) {
+				mask0.at<uchar>(row, col) = mask.at<uchar>(row, col);
+			}
+		}
+		check_mask(mask0);
+		waitKey(10);
 		for (int i = 0; i < 5; i++) {
-			grabCut(res, mask0, rect, bgModel, fgModel, 1);
+			grabCut(res, mask0, rect, bgModel, fgModel, 1, GC_EVAL);
 			cout << " ... ";
 		}
 		//对选区图像进行操作
 		Mat foreground1(res.size(), CV_8UC3, Scalar(255, 255, 255));
 		for (int row = rect.y; row < rect.y + rect.height; row++) {
-			for (int col = rect.x; col < rect.x + rect.width; col++) {
-				if (mask.at<uchar>(row, col) == GC_PR_FGD || mask.at<uchar>(row, col) == GC_FGD) {
-					foreground1.at<Vec3b>(row, col)[0] = res.at<Vec3b>(row, col)[0];
-					foreground1.at<Vec3b>(row, col)[1] = res.at<Vec3b>(row, col)[1];
-					foreground1.at<Vec3b>(row, col)[2] = res.at<Vec3b>(row, col)[2];
+			for (int col =rect.x; col < rect.x+rect.width; col++) {
+				if (mask0.at<uchar>(row, col) == GC_PR_FGD || mask0.at<uchar>(row, col) == GC_FGD) {
+					foreground1.at<Vec3b>(row, col) = res.at<Vec3b>(row, col);
 					mask0.at<uchar>(row, col) = GC_FGD;
 				}
 			}
 		}
 		imshow("selected area objects", foreground1);
+		cout << endl<<"only do the rect! " << rect.x << " , " << rect.y << " , "<<rect.width<<" , "<<rect.height<<endl;
+		waitKey(10);
 		cout << endl << "grabcut finished!" << endl;
 	}
+
 	else if (current_state = FOUR) {
+		mask0 = mask.clone();
 		Rect rec0(0, 0, res.cols, res.rows);
 		for (int i = 0; i < 5; i++) {
 			grabCut(res, mask0, rec0, bgModel, fgModel, 1);
@@ -223,17 +239,28 @@ bool System::do_grabcut() {
 		imshow("grabcut", foreground2);
 		cout << endl << "grabcut finished!" << endl;
 	}
+
 	check_mask(mask0);
 	cout << "Do you want to redo it? Please enter ‘n' to continue without redo. Enter others to redo." << endl;
 	int c = waitKey(0);
 		if ((char)c == 'n') {
-			mask = mask0;
-			check_mask(mask);
+			if (current_state == FOUR) {
+				mask = mask0;
+			}
+			else if (current_state == THREE) {
+				//mask0.copyTo(mask(rect));
+				for (int row =rect.y; row < rect.y+rect.height; row++) {
+					for (int col =rect.x; col < rect.x+rect.width; col++) {
+						mask.at<uchar>(row , col) = mask0.at<uchar>(row, col);
+					}
+				}
+			}
 		}
 		else {
 			cout << "ok, redo!" << endl;
 			return false;
 		}
+		check_mask(mask);
 		return true;
 }
 
@@ -364,22 +391,77 @@ void System::do_kmeans() {
 				backorfront.at<int>(index,0) = -1;
 			}
 	}
-	
+		bool check_xleft = true;
+		bool check_xright = true;
+		bool check_yup = true;
+		bool check_ydown = true;
+		cout << "Anything you do not want to check? Enter '1' means yes, otherwise no." << endl;
+		int k = waitKey(0);
+		if ((char)k == '1') {
+			cout << "check_xleft?" << endl;
+			int xl = waitKey(0);
+			if ((char)xl == '0') {
+				check_xleft = false;
+				cout << "no" << endl;
+			}
+			else {
+				cout << "yes" << endl;
+			}
+			cout << "check_xright?" << endl;
+			int xr = waitKey(0);
+			if ((char)xr =='0') {
+				check_xright = false;
+				cout << "no" << endl;
+			}
+			else {
+				cout << "yes" << endl;
+			}
+			cout << "check_ydown?" << endl;
+			int yd = waitKey(0);
+			if ((char)yd == '0') {
+				check_ydown = false;
+				cout << "no" << endl;
+			}
+			else {
+				cout << "yes" << endl;
+			}
+			cout << "check_yup?" << endl;
+			int yu = waitKey(0);
+			if ((char)yu == '0') {
+				check_yup = false;
+				cout << "no" << endl;
+			}
+			else {
+				cout << "yes" << endl;
+			}
+		}
+		else {
+			cout << "ok, nothing special!" << endl;
+		}
 		for (int row = 0; row < height; row++) {
 			// index = row * width + col;
-			int lable1 = labels.at<int>(row*width, 0);
-			int lable2 = labels.at<int>(row*width+width - 1,0);
-			back_collector[lable1] = 1;
-			back_collector[lable2] = 1;
+			if (check_xleft == true) {
+				int lable1 = labels.at<int>(row*width, 0);
+				back_collector[lable1] = 1;
+			}
+			if (check_xright == true) {
+				int lable2 = labels.at<int>(row*width + width - 1, 0);
+				back_collector[lable2] = 1;
+			}
 	}
 		for (int col = 0; col < width; col++) {
-			int lable3 = labels.at<int>(col,0);
-			int lable4 = labels.at<int>((height - 1)*width+col,0);
-			back_collector[lable3] = 1;
-			back_collector[lable4] = 1;
+			if (check_yup == true) {
+				int lable3 = labels.at<int>(col, 0);
+				back_collector[lable3] = 1;
+			}
+			if (check_ydown == true) {
+				int lable4 = labels.at<int>((height - 1)*width + col, 0);
+				back_collector[lable4] = 1;
+			}
 		}
 	
 //寻找前景
+		/*
 		//方法一：根据聚类中心遍历图像寻找最接近像素点的物理位置，然后计算这些物理物质中离边缘组最远的类为前景
 		POINT p[NUM];
 		for (int i = 0; i < NUM; i++) {
@@ -427,8 +509,9 @@ void System::do_kmeans() {
 		else {
 			back_collector[front_id] = 2;
 		}
-		/*   //方法二：算每个聚类中心离其他颜色欧氏距离最远的类作为前景
-		float min = 99999999;
+		*/
+		//方法二：算每个聚类中心离其他颜色欧氏距离最远的类作为前景
+		float max = 0;
 		int front_id = -1;;
 		for (int i = 0; i < NUM; i++) {
 			if (back_collector[i] == 0) {
@@ -438,8 +521,8 @@ void System::do_kmeans() {
 						sum += sqrt(pow((centers.at<float>(i, 0) - centers.at<float>(j, 0)), 2) + pow((centers.at<float>(i, 1) - centers.at<float>(j, 1)), 2) + pow((centers.at<float>(i, 2) - centers.at<float>(j,2)), 2));
 					}
 				}
-				if (sum < min) {
-					min = sum;
+				if (sum > max) {
+					max = sum;
 					front_id = i;
 				}
 			}
@@ -450,7 +533,6 @@ void System::do_kmeans() {
 		else {
 			back_collector[front_id] = 2;
 		}
-		*/
 
 		//输出每个类别的判断，0表示可能前景，1表示背景，2表示前景
 		for (int i = 0; i < NUM; i++) {
@@ -485,7 +567,10 @@ void System::do_kmeans() {
 					check_result.at<uchar>(row, col) = 150;
 					mask.at<uchar>(rect.y + row, rect.x + col) = GC_FGD; //mask遮罩进行对应前景标记
 				}
-				
+				else {
+					check_result.at<uchar>(row, col) = 200;
+					mask.at<uchar>(rect.y + row, rect.x + col) = GC_PR_FGD; //mask遮罩进行对应前景标记
+				}
 			}
 		}
 		imshow("backorfront", check_result);	
@@ -621,7 +706,6 @@ void System::run(const Mat& src, const string& winName) {
 			cout << " Now choose the certain front objects using left mouse buttom and the certain background using right mouse buttom just like Stage THREE."<<endl<<
 				"You may enter 'n' once finished. " << endl;
 			allow_select = true;
-			check_mask(mask);
 			while (1) {
 				int c = waitKey(0);
 				switch ((char)c) {
@@ -855,7 +939,7 @@ static void on_mouse(int event, int x, int y, int flags, void* param) {
 }
 
 int main() {
-	string filename = "E:\\Uni\\SIGGRAPH\\UIST\\pics\\3.JPG";
+	string filename = "E:\\Uni\\SIGGRAPH\\UIST\\pics\\nishiripoli.jpg";
 	//Mat src0 = imread(filename,COLOR_RGB2Lab); //用Lab通道打开图片
 	Mat src0 = imread(filename);
 	/*检查图像
