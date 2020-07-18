@@ -1,4 +1,6 @@
-##Amazing-Software
+## Amazing-Software
+
+### Introduction
 
 This is a little project based on the paper A Mixed-Initiative Interface for Animating Static Pictures.
 I am still building it right now.
